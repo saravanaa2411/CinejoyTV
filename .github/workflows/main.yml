@@ -19,7 +19,7 @@ jobs:
           distribution: temurin
           java-version: "17"
 
-      - name: Set up Android SDK
+            - name: Set up Android SDK
         uses: android-actions/setup-android@v4
         with:
           packages: ""
@@ -35,11 +35,19 @@ jobs:
         with:
           gradle-version: "8.7"
 
+      - name: Find Android project
+        run: |
+          PROJECT_DIR=$(dirname "$(find . -name settings.gradle -not -path './.gradle/*' -print -quit)")
+          echo "PROJECT_DIR=$PROJECT_DIR" >> "$GITHUB_ENV"
+          echo "Android project found at: $PROJECT_DIR"
+
       - name: Build APK
-        run: gradle assembleDebug
+        run: |
+          cd "$PROJECT_DIR"
+          gradle assembleDebug
 
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
           name: CinejoyTV-debug-apk
-          path: app/build/outputs/apk/debug/app-debug.apk
+          path: "**/app/build/outputs/apk/debug/app-debug.apk"
