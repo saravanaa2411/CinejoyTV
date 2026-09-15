@@ -3,7 +3,8 @@ name: Build Cinejoy TV APK
 on:
   workflow_dispatch:
   push:
-    branches: ["main"]
+    branches:
+      - main
 
 jobs:
   build:
@@ -19,10 +20,8 @@ jobs:
           distribution: temurin
           java-version: "17"
 
-            - name: Set up Android SDK
+      - name: Set up Android SDK
         uses: android-actions/setup-android@v4
-        with:
-          packages: ""
 
       - name: Install Android SDK packages
         run: |
@@ -35,14 +34,19 @@ jobs:
         with:
           gradle-version: "8.7"
 
-      - name: Find Android project
+      - name: Show project files
         run: |
-          PROJECT_DIR=$(dirname "$(find . -name settings.gradle -not -path './.gradle/*' -print -quit)")
-          echo "PROJECT_DIR=$PROJECT_DIR" >> "$GITHUB_ENV"
-          echo "Android project found at: $PROJECT_DIR"
+          echo "Current directory:"
+          pwd
+          echo "Files:"
+          ls -la
+          echo "Searching for settings.gradle:"
+          find . -name settings.gradle -print
 
       - name: Build APK
         run: |
+          PROJECT_DIR=$(dirname "$(find . -name settings.gradle -not -path './.gradle/*' -print -quit)")
+          echo "Building from: $PROJECT_DIR"
           cd "$PROJECT_DIR"
           gradle assembleDebug
 
