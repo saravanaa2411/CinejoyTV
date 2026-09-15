@@ -20,8 +20,16 @@ jobs:
           distribution: temurin
           java-version: "17"
 
-      - name: Set up Android SDK
-        uses: android-actions/setup-android@v4
+      - name: Configure Android SDK
+        run: |
+          echo "ANDROID_HOME=$ANDROID_HOME"
+          echo "ANDROID_SDK_ROOT=$ANDROID_SDK_ROOT"
+          echo "$ANDROID_HOME/cmdline-tools/latest/bin" >> "$GITHUB_PATH"
+          echo "$ANDROID_HOME/platform-tools" >> "$GITHUB_PATH"
+
+      - name: Accept Android SDK licenses
+        run: |
+          yes | sdkmanager --licenses || true
 
       - name: Install Android SDK packages
         run: |
@@ -34,11 +42,11 @@ jobs:
         with:
           gradle-version: "8.7"
 
-      - name: Show project files
+      - name: Find Android project
         run: |
           echo "Current directory:"
           pwd
-          echo "Files:"
+          echo "Project files:"
           ls -la
           echo "Searching for settings.gradle:"
           find . -name settings.gradle -print
