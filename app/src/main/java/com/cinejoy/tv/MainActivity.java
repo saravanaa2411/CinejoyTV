@@ -24,6 +24,7 @@ public class MainActivity extends Activity {
     private WebView webView;
     private LinearLayout sidebar;
     private FrameLayout rootLayout;
+    private View customView;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -31,12 +32,24 @@ public class MainActivity extends Activity {
 
         rootLayout = new FrameLayout(this);
 
+        createWebView();
+        createSidebar();
+
+        setContentView(rootLayout);
+
+        webView.requestFocus();
+        webView.loadUrl(HOME_URL);
+    }
+
+    private void createWebView() {
+
         webView = new WebView(this);
         webView.setBackgroundColor(Color.BLACK);
         webView.setFocusable(true);
         webView.setFocusableInTouchMode(true);
 
         WebSettings s = webView.getSettings();
+
         s.setJavaScriptEnabled(true);
         s.setDomStorageEnabled(true);
         s.setDatabaseEnabled(true);
@@ -47,6 +60,7 @@ public class MainActivity extends Activity {
         s.setLoadWithOverviewMode(true);
         s.setUseWideViewPort(true);
         s.setCacheMode(WebSettings.LOAD_DEFAULT);
+
         s.setUserAgentString(
                 s.getUserAgentString() + " CinejoyTV/1.0 AndroidTV"
         );
@@ -56,6 +70,7 @@ public class MainActivity extends Activity {
         cm.setAcceptThirdPartyCookies(webView, true);
 
         webView.setWebViewClient(new WebViewClient() {
+
             @Override
             public boolean shouldOverrideUrlLoading(
                     WebView view,
@@ -66,6 +81,7 @@ public class MainActivity extends Activity {
 
                 if ("http".equalsIgnoreCase(scheme)
                         || "https".equalsIgnoreCase(scheme)) {
+
                     view.loadUrl(u.toString());
                     return true;
                 }
@@ -74,21 +90,63 @@ public class MainActivity extends Activity {
             }
         });
 
-        webView.setWebChromeClient(new WebChromeClient());
+        webView.setWebChromeClient(new WebChromeClient() {
 
-        rootLayout.addView(webView);
+            @Override
+            public void onShowCustomView(
+                    View view,
+                    CustomViewCallback callback) {
 
-        createSidebar();
+                customView = view;
 
-        setContentView(rootLayout);
+                // Hide sidebar during fullscreen video
+                sidebar.setVisibility(View.GONE);
 
-        webView.requestFocus();
-        webView.loadUrl(HOME_URL);
+                FrameLayout.LayoutParams params =
+                        new FrameLayout.LayoutParams(
+                                FrameLayout.LayoutParams.MATCH_PARENT,
+                                FrameLayout.LayoutParams.MATCH_PARENT
+                        );
+
+                rootLayout.addView(customView, params);
+                customView.setSystemUiVisibility(
+                        View.SYSTEM_UI_FLAG_FULLSCREEN
+                                | View.SYSTEM_UI_FLAG_HIDE_NAVIGATION
+                                | View.SYSTEM_UI_FLAG_IMMERSIVE_STICKY
+                );
+            }
+
+            @Override
+            public void onHideCustomView() {
+
+                if (customView != null) {
+
+                    rootLayout.removeView(customView);
+                    customView = null;
+
+                    // Show sidebar again after exiting video
+                    sidebar.setVisibility(View.VISIBLE);
+                    webView.requestFocus();
+                }
+            }
+        });
+
+        // Reserve space for the sidebar
+        FrameLayout.LayoutParams webParams =
+                new FrameLayout.LayoutParams(
+                        FrameLayout.LayoutParams.MATCH_PARENT,
+                        FrameLayout.LayoutParams.MATCH_PARENT
+                );
+
+        webParams.leftMargin = 170;
+
+        rootLayout.addView(webView, webParams);
     }
 
     private void createSidebar() {
 
         sidebar = new LinearLayout(this);
+
         sidebar.setOrientation(LinearLayout.VERTICAL);
         sidebar.setGravity(Gravity.CENTER);
         sidebar.setPadding(12, 20, 12, 20);
@@ -96,46 +154,45 @@ public class MainActivity extends Activity {
 
         FrameLayout.LayoutParams sidebarParams =
                 new FrameLayout.LayoutParams(
-                        150,
+                        170,
                         FrameLayout.LayoutParams.MATCH_PARENT
                 );
 
-        sidebarParams.gravity = Gravity.START | Gravity.CENTER_VERTICAL;
+        sidebarParams.gravity =
+                Gravity.START | Gravity.CENTER_VERTICAL;
 
         sidebar.setLayoutParams(sidebarParams);
 
         addSidebarButton("Home", new View.OnClickListener() {
+
             @Override
             public void onClick(View v) {
                 webView.loadUrl(HOME_URL);
-                closeSidebar();
+                webView.requestFocus();
             }
         });
 
         addSidebarButton("Back", new View.OnClickListener() {
+
             @Override
             public void onClick(View v) {
+
                 if (webView.canGoBack()) {
                     webView.goBack();
                 }
+
+                webView.requestFocus();
             }
         });
 
         addSidebarButton("Reload", new View.OnClickListener() {
+
             @Override
             public void onClick(View v) {
                 webView.reload();
+                webView.requestFocus();
             }
         });
-
-        addSidebarButton("Close", new View.OnClickListener() {
-            @Override
-            public void onClick(View v) {
-                closeSidebar();
-            }
-        });
-
-        sidebar.setVisibility(View.GONE);
 
         rootLayout.addView(sidebar);
     }
@@ -145,6 +202,7 @@ public class MainActivity extends Activity {
             View.OnClickListener listener) {
 
         Button button = new Button(this);
+
         button.setText(text);
         button.setTextSize(14);
         button.setFocusable(true);
@@ -161,16 +219,6 @@ public class MainActivity extends Activity {
         sidebar.addView(button, params);
     }
 
-    private void openSidebar() {
-        sidebar.setVisibility(View.VISIBLE);
-        sidebar.getChildAt(0).requestFocus();
-    }
-
-    private void closeSidebar() {
-        sidebar.setVisibility(View.GONE);
-        webView.requestFocus();
-    }
-
     @Override
     public boolean dispatchKeyEvent(KeyEvent event) {
 
@@ -178,20 +226,21 @@ public class MainActivity extends Activity {
 
             int keyCode = event.getKeyCode();
 
-            if (keyCode == KeyEvent.KEYCODE_DPAD_LEFT
-                    && sidebar.getVisibility() != View.VISIBLE) {
+            // BACK exits fullscreen video first
+            if (keyCode == KeyEvent.KEYCODE_BACK
+                    && customView != null) {
 
-                openSidebar();
+                if (webView.getWebChromeClient() != null) {
+                    webView.evaluateJavascript(
+                            "document.exitFullscreen && document.exitFullscreen();",
+                            null
+                    );
+                }
+
                 return true;
             }
 
-            if (keyCode == KeyEvent.KEYCODE_DPAD_RIGHT
-                    && sidebar.getVisibility() == View.VISIBLE) {
-
-                closeSidebar();
-                return true;
-            }
-
+            // Normal browser history
             if (keyCode == KeyEvent.KEYCODE_BACK
                     && webView != null
                     && webView.canGoBack()) {
