@@ -2,6 +2,7 @@ package com.cinejoy.tv;
 
 import android.app.Activity;
 import android.graphics.Color;
+import android.graphics.drawable.GradientDrawable;
 import android.net.Uri;
 import android.os.Bundle;
 import android.view.Gravity;
@@ -24,7 +25,9 @@ public class MainActivity extends Activity {
     private WebView webView;
     private LinearLayout sidebar;
     private FrameLayout rootLayout;
+
     private View customView;
+    private WebChromeClient.CustomViewCallback customViewCallback;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -41,9 +44,14 @@ public class MainActivity extends Activity {
         webView.loadUrl(HOME_URL);
     }
 
+    // =========================================================
+    // WEBVIEW
+    // =========================================================
+
     private void createWebView() {
 
         webView = new WebView(this);
+
         webView.setBackgroundColor(Color.BLACK);
         webView.setFocusable(true);
         webView.setFocusableInTouchMode(true);
@@ -54,9 +62,11 @@ public class MainActivity extends Activity {
         s.setDomStorageEnabled(true);
         s.setDatabaseEnabled(true);
         s.setMediaPlaybackRequiresUserGesture(false);
+
         s.setSupportZoom(false);
         s.setBuiltInZoomControls(false);
         s.setDisplayZoomControls(false);
+
         s.setLoadWithOverviewMode(true);
         s.setUseWideViewPort(true);
         s.setCacheMode(WebSettings.LOAD_DEFAULT);
@@ -65,9 +75,14 @@ public class MainActivity extends Activity {
                 s.getUserAgentString() + " CinejoyTV/1.0 AndroidTV"
         );
 
-        CookieManager cm = CookieManager.getInstance();
-        cm.setAcceptCookie(true);
-        cm.setAcceptThirdPartyCookies(webView, true);
+        CookieManager cookieManager =
+                CookieManager.getInstance();
+
+        cookieManager.setAcceptCookie(true);
+        cookieManager.setAcceptThirdPartyCookies(
+                webView,
+                true
+        );
 
         webView.setWebViewClient(new WebViewClient() {
 
@@ -76,13 +91,13 @@ public class MainActivity extends Activity {
                     WebView view,
                     WebResourceRequest request) {
 
-                Uri u = request.getUrl();
-                String scheme = u.getScheme();
+                Uri uri = request.getUrl();
+                String scheme = uri.getScheme();
 
                 if ("http".equalsIgnoreCase(scheme)
                         || "https".equalsIgnoreCase(scheme)) {
 
-                    view.loadUrl(u.toString());
+                    view.loadUrl(uri.toString());
                     return true;
                 }
 
@@ -97,9 +112,16 @@ public class MainActivity extends Activity {
                     View view,
                     CustomViewCallback callback) {
 
-                customView = view;
+                // Avoid duplicate fullscreen views
+                if (customView != null) {
+                    callback.onCustomViewHidden();
+                    return;
+                }
 
-                // Hide sidebar during fullscreen video
+                customView = view;
+                customViewCallback = callback;
+
+                // Hide floating sidebar during video
                 sidebar.setVisibility(View.GONE);
 
                 FrameLayout.LayoutParams params =
@@ -109,6 +131,7 @@ public class MainActivity extends Activity {
                         );
 
                 rootLayout.addView(customView, params);
+
                 customView.setSystemUiVisibility(
                         View.SYSTEM_UI_FLAG_FULLSCREEN
                                 | View.SYSTEM_UI_FLAG_HIDE_NAVIGATION
@@ -119,29 +142,25 @@ public class MainActivity extends Activity {
             @Override
             public void onHideCustomView() {
 
-                if (customView != null) {
-
-                    rootLayout.removeView(customView);
-                    customView = null;
-
-                    // Show sidebar again after exiting video
-                    sidebar.setVisibility(View.VISIBLE);
-                    webView.requestFocus();
-                }
+                exitFullscreen();
             }
         });
 
-        // Reserve space for the sidebar
+        // WebView occupies the complete screen.
+        // Sidebar floats above the WebView.
+
         FrameLayout.LayoutParams webParams =
                 new FrameLayout.LayoutParams(
                         FrameLayout.LayoutParams.MATCH_PARENT,
                         FrameLayout.LayoutParams.MATCH_PARENT
                 );
 
-        webParams.leftMargin = 170;
-
         rootLayout.addView(webView, webParams);
     }
+
+    // =========================================================
+    // FLOATING SIDEBAR
+    // =========================================================
 
     private void createSidebar() {
 
@@ -149,53 +168,89 @@ public class MainActivity extends Activity {
 
         sidebar.setOrientation(LinearLayout.VERTICAL);
         sidebar.setGravity(Gravity.CENTER);
-        sidebar.setPadding(12, 20, 12, 20);
-        sidebar.setBackgroundColor(Color.rgb(35, 35, 35));
+        sidebar.setPadding(8, 16, 8, 16);
+
+        // Rounded translucent background
+        GradientDrawable sidebarBackground =
+                new GradientDrawable();
+
+        sidebarBackground.setColor(
+                Color.argb(225, 25, 25, 30)
+        );
+
+        sidebarBackground.setCornerRadius(35);
+
+        sidebar.setBackground(sidebarBackground);
+        sidebar.setElevation(15);
 
         FrameLayout.LayoutParams sidebarParams =
                 new FrameLayout.LayoutParams(
-                        170,
-                        FrameLayout.LayoutParams.MATCH_PARENT
+                        135,
+                        FrameLayout.LayoutParams.WRAP_CONTENT
                 );
 
         sidebarParams.gravity =
                 Gravity.START | Gravity.CENTER_VERTICAL;
 
+        sidebarParams.setMargins(16, 0, 0, 0);
+
         sidebar.setLayoutParams(sidebarParams);
 
-        addSidebarButton("Home", new View.OnClickListener() {
+        // HOME BUTTON
+        addSidebarButton(
+                "HOME",
+                new View.OnClickListener() {
 
-            @Override
-            public void onClick(View v) {
-                webView.loadUrl(HOME_URL);
-                webView.requestFocus();
-            }
-        });
+                    @Override
+                    public void onClick(View v) {
 
-        addSidebarButton("Back", new View.OnClickListener() {
-
-            @Override
-            public void onClick(View v) {
-
-                if (webView.canGoBack()) {
-                    webView.goBack();
+                        webView.loadUrl(HOME_URL);
+                        webView.requestFocus();
+                    }
                 }
+        );
 
-                webView.requestFocus();
-            }
-        });
+        // BACK BUTTON
+        addSidebarButton(
+                "BACK",
+                new View.OnClickListener() {
 
-        addSidebarButton("Reload", new View.OnClickListener() {
+                    @Override
+                    public void onClick(View v) {
 
-            @Override
-            public void onClick(View v) {
-                webView.reload();
-                webView.requestFocus();
-            }
-        });
+                        if (webView.canGoBack()) {
+                            webView.goBack();
+                        }
 
+                        webView.requestFocus();
+                    }
+                }
+        );
+
+        // RELOAD BUTTON
+        addSidebarButton(
+                "RELOAD",
+                new View.OnClickListener() {
+
+                    @Override
+                    public void onClick(View v) {
+
+                        webView.reload();
+                        webView.requestFocus();
+                    }
+                }
+        );
+
+        // Sidebar remains visible during browsing
+        sidebar.setVisibility(View.VISIBLE);
+
+        // Add sidebar last so it floats above WebView
         rootLayout.addView(sidebar);
     }
+
+    // =========================================================
+    // SIDEBAR BUTTON DESIGN
+    // =========================================================
 
     private void addSidebarButton(
             String text,
@@ -204,20 +259,91 @@ public class MainActivity extends Activity {
         Button button = new Button(this);
 
         button.setText(text);
-        button.setTextSize(14);
+        button.setTextSize(12);
+        button.setTextColor(Color.WHITE);
+
+        button.setAllCaps(false);
+        button.setGravity(Gravity.CENTER);
+
         button.setFocusable(true);
+        button.setFocusableInTouchMode(true);
+
+        button.setBackgroundColor(Color.TRANSPARENT);
+
         button.setOnClickListener(listener);
+
+        // Focus effect
+        button.setOnFocusChangeListener(
+                new View.OnFocusChangeListener() {
+
+                    @Override
+                    public void onFocusChange(
+                            View v,
+                            boolean hasFocus) {
+
+                        GradientDrawable background =
+                                new GradientDrawable();
+
+                        background.setCornerRadius(18);
+
+                        if (hasFocus) {
+
+                            background.setColor(
+                                    Color.rgb(80, 80, 90)
+                            );
+
+                        } else {
+
+                            background.setColor(
+                                    Color.TRANSPARENT
+                            );
+                        }
+
+                        v.setBackground(background);
+                    }
+                }
+        );
 
         LinearLayout.LayoutParams params =
                 new LinearLayout.LayoutParams(
                         LinearLayout.LayoutParams.MATCH_PARENT,
-                        65
+                        58
                 );
 
-        params.setMargins(0, 8, 0, 8);
+        params.setMargins(0, 6, 0, 6);
 
         sidebar.addView(button, params);
     }
+
+    // =========================================================
+    // EXIT FULLSCREEN VIDEO
+    // =========================================================
+
+    private void exitFullscreen() {
+
+        if (customView == null) {
+            return;
+        }
+
+        rootLayout.removeView(customView);
+
+        customView = null;
+
+        if (customViewCallback != null) {
+
+            customViewCallback.onCustomViewHidden();
+            customViewCallback = null;
+        }
+
+        // Show sidebar again after video exits
+        sidebar.setVisibility(View.VISIBLE);
+
+        webView.requestFocus();
+    }
+
+    // =========================================================
+    // REMOTE CONTROL
+    // =========================================================
 
     @Override
     public boolean dispatchKeyEvent(KeyEvent event) {
@@ -226,21 +352,15 @@ public class MainActivity extends Activity {
 
             int keyCode = event.getKeyCode();
 
-            // BACK exits fullscreen video first
+            // BACK exits fullscreen first
             if (keyCode == KeyEvent.KEYCODE_BACK
                     && customView != null) {
 
-                if (webView.getWebChromeClient() != null) {
-                    webView.evaluateJavascript(
-                            "document.exitFullscreen && document.exitFullscreen();",
-                            null
-                    );
-                }
-
+                exitFullscreen();
                 return true;
             }
 
-            // Normal browser history
+            // Normal WebView navigation
             if (keyCode == KeyEvent.KEYCODE_BACK
                     && webView != null
                     && webView.canGoBack()) {
@@ -253,10 +373,15 @@ public class MainActivity extends Activity {
         return super.dispatchKeyEvent(event);
     }
 
+    // =========================================================
+    // ACTIVITY DESTROY
+    // =========================================================
+
     @Override
     protected void onDestroy() {
 
         if (webView != null) {
+
             webView.stopLoading();
             webView.destroy();
         }
