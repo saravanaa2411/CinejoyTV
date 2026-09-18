@@ -14,7 +14,7 @@ import android.webkit.WebView;
 import android.webkit.WebViewClient;
 
 public class MainActivity extends Activity {
-    private static final String HOME_URL = "https://cinejoy.to";
+    private static final String HOME_URL = "https://cinejoy.pk";
     private WebView webView;
 
     @Override protected void onCreate(Bundle savedInstanceState) {
