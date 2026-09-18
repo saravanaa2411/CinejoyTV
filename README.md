@@ -2,7 +2,7 @@
 
 Target: Xiaomi Mi Box 4, Android 9.
 
-Home URL: https://cinejoy.to
+Home URL: https://cinejoy.pk
 
 This is a generic Android TV WebView wrapper. It does not download, decrypt,
 bypass DRM, or extract media. Playback depends on the website/player.
